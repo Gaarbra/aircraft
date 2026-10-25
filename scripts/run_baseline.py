@@ -14,35 +14,13 @@ from pathlib import Path
 
 import torch
 import torchvision
-from PIL import Image, ImageDraw, ImageFont
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights, fasterrcnn_resnet50_fpn
-from torchvision.transforms.functional import to_pil_image
 
 from aerial_detection.data import AircraftDataset
+from aerial_detection.visualization import save_boxes
 from aerial_detection.evaluation import match_detections, summarize_counts
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def draw_comparison(image, targets, prediction, image_id, metrics, threshold):
-    canvas = Image.new("RGB", (1040, 585), "#f7f9fc")
-    font = ImageFont.load_default(size=20)
-    draw = ImageDraw.Draw(canvas)
-    draw.text((15, 10), f"Image {image_id}: {metrics['tp']} matched, {metrics['fp']} false positives, {metrics['fn']} missed", fill="#17243b", font=font)
-    for offset, boxes, color, title, scores in [
-        (10, targets, "#ffb000", f"Dataset labels: {len(targets)} aircraft", None),
-        (530, prediction["boxes"], "#00d9ff", f"Model: {len(prediction['boxes'])} aircraft (score >= {threshold:g})", prediction["scores"]),
-    ]:
-        photo = to_pil_image(image)
-        photo_draw = ImageDraw.Draw(photo)
-        for index, box in enumerate(boxes.tolist()):
-            photo_draw.rectangle(box, outline=color, width=3)
-            if scores is not None:
-                photo_draw.text((box[0], max(0, box[1] - 22)), f"{scores[index].item():.2f}", fill=color, font=font, stroke_width=1, stroke_fill="black")
-        photo.thumbnail((500, 500))
-        canvas.paste(photo, (offset, 75))
-        draw.text((offset, 45), title, fill="#17243b", font=font)
-    return canvas
 
 
 def main():
@@ -65,7 +43,6 @@ def main():
     output_dir = ROOT / "outputs" / "baseline"
     output_dir.mkdir(parents=True, exist_ok=True)
     results = []
-    panels = []
     for index in range(len(dataset)):
         image, target = dataset[index]
         image_id = target["image_id"].item()
@@ -90,9 +67,8 @@ def main():
                   "aircraft_boxes_xyxy": prediction["boxes"].tolist(), "aircraft_scores": prediction["scores"].tolist(),
                   "all_model_detections": all_predictions}
         results.append(record)
-        panel = draw_comparison(image, target["boxes"], prediction, image_id, metrics, args.score_threshold)
-        panel.save(output_dir / f"{image_id}_comparison.png")
-        panels.append(panel)
+        save_boxes(image, target["boxes"], output_dir / f"{image_id}_labels.png")
+        save_boxes(image, prediction["boxes"], output_dir / f"{image_id}_predictions.png")
         print(f"  {metrics['tp']} matched, {metrics['fp']} false positives, {metrics['fn']} missed; {seconds:.1f}s", flush=True)
 
     counts = summarize_counts(*(sum(r[key] for r in results) for key in ("tp", "fp", "fn")))
@@ -107,12 +83,8 @@ def main():
               "matching": "descending confidence, best unmatched target at IoU threshold",
               "summary": counts, "images": results}
     (output_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    sheet = Image.new("RGB", (1040, 585 * len(panels)))
-    for index, panel in enumerate(panels):
-        sheet.paste(panel, (0, index * 585))
-    sheet.save(output_dir / "comparison_sheet.png")
     print(json.dumps(counts, indent=2))
-    print(f"Saved predictions, comparisons, and settings: {output_dir}")
+    print(f"Saved full-size label images, prediction images, and report: {output_dir}")
     print("No training performed. These sample counts are not a benchmark score.")
 
 
