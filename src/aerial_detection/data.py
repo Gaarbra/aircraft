@@ -1,4 +1,4 @@
-"""Read our small inspection manifest as a PyTorch detection dataset."""
+"""Pair each image with its aircraft boxes for PyTorch."""
 
 import json
 import math
@@ -24,25 +24,30 @@ def xywh_to_xyxy(box, width, height):
 
 class AircraftDataset(Dataset):
     def __init__(self, manifest):
+        # Read the list of images and their correct boxes.
         self.manifest_path = Path(manifest)
         self.document = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         self.samples = self.document["samples"]
 
     def __len__(self):
+        # Tell PyTorch how many examples we have.
         return len(self.samples)
 
     def __getitem__(self, index):
+        # 1. Open one image.
         sample = self.samples[index]
         with Image.open(self.manifest_path.parent / sample["file"]) as source:
             photo = source.convert("RGB")
         if photo.size != (sample["width"], sample["height"]):
             raise ValueError("Image dimensions do not match its annotations")
+        # 2. Convert pixels to numbers between 0 and 1.
         image = pil_to_tensor(photo).float() / 255.0
+        # 3. Convert each box to [left, top, right, bottom].
         boxes = torch.tensor([
             xywh_to_xyxy(box, photo.width, photo.height)
             for box in sample["aircraft_boxes_xywh"]
         ], dtype=torch.float32).reshape(-1, 4)
-        # Faster R-CNN reserves 0 for background, so our aircraft label is 1.
+        # 4. Package the answers. Aircraft = 1; background = 0.
         target = {
             "boxes": boxes,
             "labels": torch.ones(len(boxes), dtype=torch.int64),
