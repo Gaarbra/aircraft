@@ -1,0 +1,48 @@
+{
+  "config": {
+    "epochs": 2,
+    "batch_size": 1,
+    "learning_rate": 0.001,
+    "dataset_size": "larger",
+    "training_images": 120,
+    "validation_images": 30,
+    "seed": 42,
+    "device": "cpu",
+    "threads": 4,
+    "frozen_backbone": true,
+    "new_head": "randomly initialized, background=0 and aircraft=1",
+    "pretrained_weights": "FasterRCNN_ResNet50_FPN_Weights.COCO_V1",
+    "torch": "2.14.1+cpu",
+    "torchvision": "0.29.1+cpu",
+    "train_manifest_sha256": "425e52860a66ae18289194e431c52b5f05ad3c1e17446b9477be52c067f4a9ed",
+    "validation_manifest_sha256": "672bd1e345d651f249b532daba4b4f5fa82b5eb68635f154dd16984481b286c4"
+  },
+  "training_history": [
+    {
+      "epoch": 1,
+      "average_training_loss": 0.7020985404339929
+    },
+    {
+      "epoch": 2,
+      "average_training_loss": 0.449996182830849
+    }
+  ],
+  "validation_before": {
+    "tp": 37,
+    "fp": 8,
+    "fn": 244,
+    "precision": 0.8222222222222222,
+    "recall": 0.13167259786476868
+  },
+  "validation_after": {
+    "tp": 164,
+    "fp": 142,
+    "fn": 117,
+    "precision": 0.5359477124183006,
+    "recall": 0.5836298932384342
+  },
+  "note": "original COCO model versus a fine-tuned two-class model with a new head; tiny validation subset, not a test score",
+  "score_threshold": 0.5,
+  "iou_threshold": 0.5,
+  "run_name": "larger_first_run"
+}
