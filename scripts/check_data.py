@@ -1,5 +1,6 @@
 """Check saved labels and images, then save plain training/validation previews."""
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -15,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--size", choices=("starter", "larger"), default="starter")
+    args = parser.parse_args()
+    data_folder = "aircraft" if args.size == "starter" else "aircraft-larger"
+    output_folder = "data_check" if args.size == "starter" else "data_check_larger"
     torch.set_num_threads(4)
     seen_ids = set()
     seen_pixels = set()
@@ -22,7 +28,7 @@ def main():
 
     # 1. Check every image, not just the images we preview.
     for split in ("train", "validation", "test"):
-        dataset = AircraftDataset(ROOT / "data" / "aircraft" / split / "manifest.json")
+        dataset = AircraftDataset(ROOT / "data" / data_folder / split / "manifest.json")
         positive_count = negative_count = box_count = tiny_count = 0
         for index, sample in enumerate(dataset.samples):
             path = dataset.manifest_path.parent / sample["file"]
@@ -53,7 +59,7 @@ def main():
 
             # 3. Save full-size boxes only. Keep test images out of tuning previews.
             if split != "test":
-                output = ROOT / "outputs" / "data_check" / split
+                output = ROOT / "outputs" / output_folder / split
                 output.mkdir(parents=True, exist_ok=True)
                 save_boxes(image, boxes, output / f"{sample['image_id']}_labels.png")
 
@@ -69,7 +75,7 @@ def main():
     report = {"checks": "image dimensions, checksums, valid boxes, pixels, duplicate IDs/pixels, batches",
               "limits": "does not certify label completeness or geographic separation; manual review still needed",
               "splits": summary}
-    output = ROOT / "outputs" / "data_check"
+    output = ROOT / "outputs" / output_folder
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print("Checks passed. Review the plain label images before training.")

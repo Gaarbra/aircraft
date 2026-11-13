@@ -4,6 +4,7 @@ Run: .venv/Scripts/python.exe scripts/prepare_data.py
 Uses the mirror's existing splits, not the official DIOR benchmark splits.
 """
 
+import argparse
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -23,6 +24,7 @@ SOURCE = "HichTala/dior"
 # Start small so we can learn and test on a CPU.
 # Each pair means: images with aircraft, images without aircraft labels.
 SPLITS = {"train": (30, 10), "validation": (8, 2), "test": (8, 2)}
+LARGER_SPLITS = {"train": (90, 30), "validation": (24, 6), "test": (24, 6)}
 
 
 def download(url):
@@ -37,8 +39,9 @@ def get_rows(split, offset):
     return json.loads(download("https://datasets-server.huggingface.co/rows?" + query))
 
 
-def prepare_split(split, wanted_positive, wanted_negative, seen_ids, seen_pixels):
-    folder = DATA / split
+def prepare_split(split, wanted_positive, wanted_negative, seen_ids, seen_pixels,
+                  data_dir=DATA, max_rows=5000):
+    folder = data_dir / split
     folder.mkdir(parents=True, exist_ok=True)
     manifest_path = folder / "manifest.json"
 
@@ -65,8 +68,10 @@ def prepare_split(split, wanted_positive, wanted_negative, seen_ids, seen_pixels
     skipped = []
 
     # This is a bounded starter selection, not a representative benchmark.
-    for offset in range(0, 1000, 100):
+    for offset in range(0, max_rows, 100):
         page = get_rows(split, offset)
+        if not page["rows"]:
+            break
         features = next(f["type"] for f in page["features"] if f["name"] == "objects")
         names = features["category"]["feature"]["names"]
         aircraft_id = names.index("Airplane")
@@ -126,7 +131,7 @@ def prepare_split(split, wanted_positive, wanted_negative, seen_ids, seen_pixels
             break
 
     if (positive_count, negative_count) != (wanted_positive, wanted_negative):
-        raise RuntimeError(f"Not enough suitable {split} examples in first 1000 rows")
+        raise RuntimeError(f"Not enough suitable {split} examples within {max_rows} rows")
 
     document = {"source": SOURCE, "source_split": split, "source_box_format": "COCO xywh",
                 "source_class_names": names, "source_aircraft_category": aircraft_id,
@@ -138,6 +143,13 @@ def prepare_split(split, wanted_positive, wanted_negative, seen_ids, seen_pixels
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--size", choices=("starter", "larger"), default="starter",
+                        help="starter: 60 images; larger: 180 images in a separate folder")
+    args = parser.parse_args()
+    splits = SPLITS if args.size == "starter" else LARGER_SPLITS
+    data_dir = DATA if args.size == "starter" else ROOT / "data" / "aircraft-larger"
+
     # 1. Exclude the three photos we already used for the demonstration.
     seen_ids = {2003, 2007, 2033}
     seen_pixels = set()
@@ -148,11 +160,11 @@ def main():
         seen_pixels.add(hashlib.sha256(str(photo.size).encode() + photo.tobytes()).hexdigest())
 
     # 2. Keep training, validation, and test images in separate folders.
-    for split, (positive, negative) in SPLITS.items():
-        prepare_split(split, positive, negative, seen_ids, seen_pixels)
+    for split, (positive, negative) in splits.items():
+        prepare_split(split, positive, negative, seen_ids, seen_pixels, data_dir=data_dir)
 
     # 3. Audit the saved data before we use it for training.
-    print("\nDownload complete. Next run: python scripts/check_data.py")
+    print(f"\nDownload complete. Next run: python scripts/check_data.py --size {args.size}")
 
 
 if __name__ == "__main__":
