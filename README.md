@@ -107,12 +107,35 @@ Try your saved model on an image:
 .venv\Scripts\python scripts/predict.py --checkpoint outputs/training/my_first_run/last.pt --image data/sample/2003.jpg
 ```
 
+### Test result
+
+`evaluate_test.py` first picks a confidence threshold for each model on the
+validation images (the one with the best F1, which balances matches against
+false alarms). Then it scores both models once on the 30 test images, which
+training never opened. The test images hold 117 labeled aircraft.
+
+```powershell
+.venv\Scripts\python scripts/evaluate_test.py --checkpoint outputs/training/my_first_run/last.pt
+```
+
+| Test result | Original model | Trained model |
+| --- | --- | --- |
+| Confidence threshold (picked on validation) | 0.3 | 0.8 |
+| Correctly detected aircraft | 34 | 71 |
+| Missed aircraft | 83 | 46 |
+| False alarms | 6 | 33 |
+| F1 | 0.43 | 0.64 |
+
+The trained model finds about twice as many aircraft but still makes more
+false alarms. 0.3 was the lowest threshold tried, so the original model might
+do a little better with a lower one. 30 images is a small test, not a benchmark.
+[Saved results](docs/test-results.json).
+
 ## What I will try next
 
 1. Check that aircraft boxes are correct, including small aircraft.
 2. Inspect the false alarms from this first training run.
-3. Compare confidence thresholds on validation data to reduce false alarms.
-4. Change one thing at a time and record what improved or got worse.
+3. Change one thing at a time and record what improved or got worse.
 
 Good data includes different aircraft sizes, backgrounds, and images with no
 aircraft. More images alone do not guarantee better results. Keep similar scenes
